@@ -1,9 +1,13 @@
-var express = require("express");
-const req = require("express/lib/request");
-var bodyParser = require("body-parser")
-var app = express();
-var connection = require('./database');
-var cors = require('cors');
+const express = require("express");
+const bodyParser = require("body-parser")
+const app = express();
+const connection = require('./database');
+const cors = require('cors');
+const fs = require("fs");
+const path = require("path");
+const multer = require('multer')
+const upload = multer({ dest: 'uploads/' })
+
 app.use(cors());
 
 
@@ -18,12 +22,17 @@ app.get('/', function (req, res) {
    });
 });
 
-app.post("/import", function (req, res) {
-   let jsondata = req.body
-   console.log(req.body)
+app.post('/importFromFile', upload.single('uploadedFile'), async function (req, res, next) {
+   const absolutePath = path.join(__dirname, req.file.path);
+   const jsonString = fs.readFileSync(absolutePath, "utf-8");
+   const jsonObject = JSON.parse(jsonString);
+   await importLicensePlates(jsonObject, res);
+})
+
+async function importLicensePlates(requestBody, res) {
    let values = []
-   for (var i = 0; i < Object.keys(jsondata).length; i++) {
-      values.push([jsondata[i].Ortskuerzel, jsondata[i].Ursprung, jsondata[i].Landkreis, jsondata[i].Bundesland]);
+   for (var i = 0; i < Object.keys(requestBody).length; i++) {
+      values.push([requestBody[i].Ortskuerzel, requestBody[i].Ursprung, requestBody[i]["Stadt/Landkreis"], requestBody[i].Bundesland]);
    }
    console.log(values)
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
@@ -41,8 +50,13 @@ app.post("/import", function (req, res) {
          })
       }
    })
-   
+}
+
+app.post("/import", function (req, res) {
+   importLicensePlates(req.body, res)
+
 })
+
 app.get('/ursprung/:ursprungName', function (req, res) {
    let ursprungName = decodeURI(req.params.ursprungName)
    var sql = "SELECT * FROM kennzeichnung WHERE ursprung = ?";
@@ -50,6 +64,17 @@ app.get('/ursprung/:ursprungName', function (req, res) {
       if (err) throw err;
       res.send(results);
    });
+});
+
+app.get('/deletedb', function (req, res) {
+   connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
+      if (err) {
+         res.send('Error Truncate table');
+      }
+      else {
+         res.send("SUCCESS")
+      }
+   })
 });
 
 app.get('/ortskuerzel/:kuerzel', function (req, res) {
