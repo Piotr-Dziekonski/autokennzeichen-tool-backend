@@ -3,6 +3,10 @@ const req = require("express/lib/request");
 var bodyParser = require("body-parser")
 var app = express();
 var connection = require('./database');
+var cors = require('cors');
+app.use(cors());
+
+
 
 app.use(bodyParser.json());
 
