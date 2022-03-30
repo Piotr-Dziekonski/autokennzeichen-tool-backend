@@ -7,6 +7,7 @@ const fs = require("fs");
 const path = require("path");
 const multer = require('multer')
 const upload = multer({ dest: 'uploads/' })
+const convert = require('xml-js');
 
 app.use(cors());
 
@@ -34,7 +35,7 @@ async function importLicensePlates(requestBody, res) {
    for (var i = 0; i < Object.keys(requestBody).length; i++) {
       values.push([requestBody[i].Ortskuerzel, requestBody[i].Ursprung, requestBody[i]["Stadt/Landkreis"], requestBody[i].Bundesland]);
    }
-   console.log(values)
+   console.log(requestBody)
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
       if (err) {
          res.send('Error Truncate table');
@@ -52,10 +53,35 @@ async function importLicensePlates(requestBody, res) {
    })
 }
 
+async function exportLicensePlates(requestBody, res, type) {
+   let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Stadt/Landkreis', Bundesland AS Bundesland FROM kennzeichnung`
+   connection.query(query, function (err, result) {
+      if (err) {
+         console.log(err)
+         res.send('Error while exporting JSON file from the database');
+      }
+      else {
+         if(type === "json"){
+            res.send(JSON.stringify(result));
+         } else if(type === "xml"){
+            res.send(convert.json2xml(result, { compact: true, ignoreComment: true, spaces: 4 }))
+         }
+      }
+   })
+}
+
 app.post("/import", function (req, res) {
    importLicensePlates(req.body, res)
-
 })
+
+app.get("/exportJson", async function (req, res) {
+   await exportLicensePlates(req.body, res, "json")
+})
+app.get("/exportXml", async function (req, res) {
+   await exportLicensePlates(req.body, res, "xml")
+})
+
+
 
 app.get('/ursprung/:ursprungName', function (req, res) {
    let ursprungName = decodeURI(req.params.ursprungName)
@@ -67,6 +93,7 @@ app.get('/ursprung/:ursprungName', function (req, res) {
 });
 
 app.get('/deletedb', function (req, res) {
+   console.log("Deleting DB...")
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
       if (err) {
          res.send('Error Truncate table');
