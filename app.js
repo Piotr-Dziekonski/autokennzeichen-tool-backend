@@ -6,13 +6,19 @@ const cors = require('cors');
 const fs = require("fs");
 const path = require("path");
 const multer = require('multer')
-const upload = multer({ dest: 'uploads/' })
 const convert = require('xml-js');
+const { parse } = require('json2csv');
+const csv = require('csvtojson');
+const { response } = require("express");
+const upload = multer({
+   dest: 'uploads/'
+})
 
-app.use(cors());
+var corsOptions = {
+   allowedHeaders: 'Content-Type, requested-type'
+}
 
-
-
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 app.get('/', function (req, res) {
@@ -35,17 +41,14 @@ async function importLicensePlates(requestBody, res) {
    for (var i = 0; i < Object.keys(requestBody).length; i++) {
       values.push([requestBody[i].Ortskuerzel, requestBody[i].Ursprung, requestBody[i]["Stadt/Landkreis"], requestBody[i].Bundesland]);
    }
-   console.log(requestBody)
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
       if (err) {
          res.send('Error Truncate table');
-      }
-      else {
+      } else {
          connection.query('INSERT INTO kennzeichnung (ortskuerzel, ursprung, landkreis, bundesland) VALUES ?', [values], function (err, result) {
             if (err) {
                res.send(err);
-            }
-            else {
+            } else {
                res.send('Success');
             }
          })
@@ -53,18 +56,25 @@ async function importLicensePlates(requestBody, res) {
    })
 }
 
-async function exportLicensePlates(requestBody, res, type) {
+async function exportLicensePlates(req, res) {
    let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Stadt/Landkreis', Bundesland AS Bundesland FROM kennzeichnung`
    connection.query(query, function (err, result) {
       if (err) {
          console.log(err)
          res.send('Error while exporting JSON file from the database');
-      }
-      else {
-         if(type === "json"){
-            res.send(JSON.stringify(result));
-         } else if(type === "xml"){
-            res.send(convert.json2xml(result, { compact: true, ignoreComment: true, spaces: 4 }))
+      } else {
+         if (req.get("Requested-Type") === "application/json") {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.write(JSON.stringify(result))
+            res.end()
+         } else if (req.get("Requested-Type") === "application/xml") {
+            res.send(convert.json2xml(result, {
+               compact: true,
+               ignoreComment: true,
+               spaces: 4
+            }))
+         } else if (req.get("Requested-Type") === "application/csv") {
+            res.send(parse(result))
          }
       }
    })
@@ -74,11 +84,8 @@ app.post("/import", function (req, res) {
    importLicensePlates(req.body, res)
 })
 
-app.get("/exportJson", async function (req, res) {
-   await exportLicensePlates(req.body, res, "json")
-})
-app.get("/exportXml", async function (req, res) {
-   await exportLicensePlates(req.body, res, "xml")
+app.get("/export", async function (req, res) {
+   await exportLicensePlates(req, res)
 })
 
 
@@ -97,8 +104,7 @@ app.get('/deletedb', function (req, res) {
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
       if (err) {
          res.send('Error Truncate table');
-      }
-      else {
+      } else {
          res.send("SUCCESS")
       }
    })
