@@ -13,6 +13,7 @@ const { response } = require("express");
 const upload = multer({
    dest: 'uploads/'
 })
+const parser = require('xml2json')
 
 var corsOptions = {
    allowedHeaders: 'Content-Type, requested-type'
@@ -31,8 +32,20 @@ app.get('/', function (req, res) {
 
 app.post('/importFromFile', upload.single('uploadedFile'), async function (req, res, next) {
    const absolutePath = path.join(__dirname, req.file.path);
-   const jsonString = fs.readFileSync(absolutePath, "utf-8");
-   const jsonObject = JSON.parse(jsonString);
+   let jsonObject;
+
+   if(req.file.mimetype == "application/json"){
+      const jsonString = fs.readFileSync(absolutePath, "utf-8");
+      jsonObject = JSON.parse(jsonString);
+   } else if (req.file.mimetype == "text/csv") {
+      await csv().fromFile(absolutePath).then((jsonObj) => {
+         jsonObject = jsonObj;
+      })
+   } else if (req.file.mimetype == "text/xml"){
+      const xmlString = fs.readFileSync(absolutePath, "utf-8");
+      jsonObject = parser.toJson(xmlString)
+      jsonObject = JSON.parse(jsonObject).pls
+   }
    await importLicensePlates(jsonObject, res);
 })
 
@@ -51,9 +64,9 @@ app.post('/addLicense/:Ortskuerzel/:Ursprung/:Landkreis/:Bundesland', function (
 
 async function importLicensePlates(requestBody, res) {
    let values = []
-   for (var i = 0; i < Object.keys(requestBody).length; i++) {
-      values.push([requestBody[i].Ortskuerzel, requestBody[i].Ursprung, requestBody[i]["Stadt/Landkreis"], requestBody[i].Bundesland]);
-   }
+   Object.keys(requestBody).forEach((val, i) => {
+      values.push([requestBody[val].Ortskuerzel, requestBody[val].Ursprung, requestBody[val]["Region"], requestBody[val].Bundesland]);
+   })
    connection.query('TRUNCATE TABLE kennzeichnung', function (err, result) {
       if (err) {
          res.send('Error Truncate table');
@@ -70,7 +83,7 @@ async function importLicensePlates(requestBody, res) {
 }
 
 async function exportLicensePlates(req, res) {
-   let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Stadt/Landkreis', Bundesland AS Bundesland FROM kennzeichnung`
+   let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Region', Bundesland AS Bundesland FROM kennzeichnung`
    connection.query(query, function (err, result) {
       if (err) {
          console.log(err)
@@ -81,7 +94,13 @@ async function exportLicensePlates(req, res) {
             res.write(JSON.stringify(result))
             res.end()
          } else if (req.get("Requested-Type") === "application/xml") {
-            res.send(convert.json2xml(result, {
+
+            let formattedResult = []
+            result.forEach((value, index) => {
+               formattedResult["elem"+index] = value
+            });
+
+            res.send(convert.json2xml(formattedResult, {
                compact: true,
                ignoreComment: true,
                spaces: 4
@@ -100,8 +119,6 @@ app.post("/import", function (req, res) {
 app.get("/export", async function (req, res) {
    await exportLicensePlates(req, res)
 })
-
-
 
 app.get('/ursprung/:ursprungName', function (req, res) {
    let ursprungName = decodeURI(req.params.ursprungName)
@@ -151,9 +168,11 @@ app.get('/landkreis', function (req, res) {
 
 app.get('/bundesland/:bundesland', function (req, res) {
    let bundesland = decodeURI(req.params.bundesland)
-   var sql = "SELECT FROM kennzeichnung WHERE bundesland = x?";
+   var sql = "SELECT * FROM kennzeichnung WHERE bundesland = ?";
    connection.query(sql, bundesland, function (err, results, fields) {
       if (err) throw err;
+      console.log(results)
+
       res.send(results);
    });
 });
