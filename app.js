@@ -36,9 +36,10 @@ app.post('/importFromFile', upload.single('uploadedFile'), async function (req, 
    await importLicensePlates(jsonObject, res);
 })
 
-app.post('addLicencePlate', function (req, res) {
-   const values = [req.params.Ortskuerzel, req.params.Ursprung, req.params.landkreis, req.params.bundesland]
-   let query = 'INSERT INTO kennzeichnung (ortskuerzel, ursprung, landkreis, bundesland) VALUES (?,?,?,?)'
+app.post('/addLicense/:Ortskuerzel/:Ursprung/:Landkreis/:Bundesland', function (req, res) {
+   const values = [req.params.Ortskuerzel, req.params.Ursprung, req.params.Landkreis, req.params.Bundesland]
+   console.log(values)
+   let query = `INSERT INTO kennzeichnung (ortskuerzel, ursprung, landkreis, bundesland) VALUES (?,?,?,?)`
    connection.query(query, values, function(err, result) {
       if(err) {
          console.log(err)
