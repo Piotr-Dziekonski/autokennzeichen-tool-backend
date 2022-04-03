@@ -122,7 +122,7 @@ app.get("/export", async function (req, res) {
 
 app.get('/ursprung/:ursprungName', function (req, res) {
    let ursprungName = decodeURI(req.params.ursprungName)
-   var sql = "SELECT * FROM kennzeichnung WHERE ursprung = ?";
+   var sql = "SELECT * FROM kennzeichnung WHERE ursprung LIKE concat('%', ?, '%')";
    connection.query(sql, ursprungName, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -142,7 +142,7 @@ app.get('/deletedb', function (req, res) {
 
 app.get('/ortskuerzel/:kuerzel', function (req, res) {
    let kuerzel = req.params.kuerzel
-   var sql = "SELECT * FROM kennzeichnung WHERE ortskuerzel = ?";
+   var sql = "SELECT * FROM kennzeichnung WHERE ortskuerzel LIKE concat('%', ?, '%')";
    connection.query(sql, kuerzel, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -151,7 +151,7 @@ app.get('/ortskuerzel/:kuerzel', function (req, res) {
 
 app.get('/landkreis/:landkreis', function (req, res) {
    let landkreis = decodeURI(req.params.landkreis)
-   var sql = "SELECT * FROM kennzeichnung WHERE landkreis = ? ";
+   var sql = "SELECT * FROM kennzeichnung WHERE landkreis LIKE concat('%', ?, '%') ";
    connection.query(sql, landkreis, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -168,7 +168,7 @@ app.get('/landkreis', function (req, res) {
 
 app.get('/bundesland/:bundesland', function (req, res) {
    let bundesland = decodeURI(req.params.bundesland)
-   var sql = "SELECT * FROM kennzeichnung WHERE bundesland = ?";
+   var sql = "SELECT * FROM kennzeichnung WHERE bundesland LIKE concat('%', ?, '%')";
    connection.query(sql, bundesland, function (err, results, fields) {
       if (err) throw err;
       console.log(results)
