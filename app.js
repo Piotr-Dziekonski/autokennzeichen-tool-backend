@@ -9,7 +9,6 @@ const multer = require('multer')
 const convert = require('xml-js');
 const { parse } = require('json2csv');
 const csv = require('csvtojson');
-const { response } = require("express");
 const upload = multer({
    dest: 'uploads/'
 })
@@ -33,25 +32,24 @@ app.get('/', function (req, res) {
 app.post('/importFromFile', upload.single('uploadedFile'), async function (req, res, next) {
    const absolutePath = path.join(__dirname, req.file.path);
    let jsonObject;
-
+   console.log(req.file.mimetype)
    if(req.file.mimetype == "application/json"){
       const jsonString = fs.readFileSync(absolutePath, "utf-8");
       jsonObject = JSON.parse(jsonString);
-   } else if (req.file.mimetype == "text/csv") {
+   } else if (req.file.mimetype == "text/csv" || "application/vnd.ms-excel") {
       await csv().fromFile(absolutePath).then((jsonObj) => {
          jsonObject = jsonObj;
       })
    } else if (req.file.mimetype == "text/xml"){
       const xmlString = fs.readFileSync(absolutePath, "utf-8");
       jsonObject = parser.toJson(xmlString)
-      jsonObject = JSON.parse(jsonObject).pls
+      jsonObject = JSON.parse(jsonObject).elements
    }
    await importLicensePlates(jsonObject, res);
 })
 
 app.post('/addLicense/:Ortskuerzel/:Ursprung/:Landkreis/:Bundesland', function (req, res) {
    const values = [req.params.Ortskuerzel, req.params.Ursprung, req.params.Landkreis, req.params.Bundesland]
-   console.log(values)
    let query = `INSERT INTO kennzeichnung (ortskuerzel, ursprung, landkreis, bundesland) VALUES (?,?,?,?)`
    connection.query(query, values, function(err, result) {
       if(err) {
@@ -93,19 +91,18 @@ async function exportLicensePlates(req, res) {
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.write(JSON.stringify(result))
             res.end()
-         } else if (req.get("Requested-Type") === "application/xml") {
+         } else if (req.get("Requested-Type") === "text/xml") {
 
             let formattedResult = []
             result.forEach((value, index) => {
-               formattedResult["elem"+index] = value
+               formattedResult.elements["elem"+index] = value
             });
-
             res.send(convert.json2xml(formattedResult, {
                compact: true,
                ignoreComment: true,
                spaces: 4
             }))
-         } else if (req.get("Requested-Type") === "application/csv") {
+         } else if (req.get("Requested-Type") === "text/csv") {
             res.send(parse(result))
          }
       }
