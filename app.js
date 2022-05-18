@@ -22,7 +22,7 @@ app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 app.get('/', function (req, res) {
-   let sql = "SELECT * FROM kennzeichnung";
+   let sql = "SELECT * FROM kennzeichnung ORDER BY Ortskuerzel ASC";
    connection.query(sql, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -32,11 +32,11 @@ app.get('/', function (req, res) {
 app.post('/importFromFile', upload.single('uploadedFile'), async function (req, res, next) {
    const absolutePath = path.join(__dirname, req.file.path);
    let jsonObject;
-   console.log(req.file.mimetype)
+   
    if(req.file.mimetype == "application/json"){
       const jsonString = fs.readFileSync(absolutePath, "utf-8");
       jsonObject = JSON.parse(jsonString);
-   } else if (req.file.mimetype == "text/csv" || "application/vnd.ms-excel") {
+   } else if (req.file.mimetype == "text/csv" || req.file.mimetype == "application/vnd.ms-excel") {
       await csv().fromFile(absolutePath).then((jsonObj) => {
          jsonObject = jsonObj;
       })
@@ -44,11 +44,12 @@ app.post('/importFromFile', upload.single('uploadedFile'), async function (req, 
       const xmlString = fs.readFileSync(absolutePath, "utf-8");
       jsonObject = parser.toJson(xmlString)
       jsonObject = JSON.parse(jsonObject).elements
+      console.log(jsonObject)
    }
    await importLicensePlates(jsonObject, res);
 })
 
-app.post('/addLicense/:Ortskuerzel/:Ursprung/:Landkreis/:Bundesland', function (req, res) {
+app.post('/addLicensePlate/:Ortskuerzel/:Ursprung/:Landkreis/:Bundesland', function (req, res) {
    const values = [req.params.Ortskuerzel, req.params.Ursprung, req.params.Landkreis, req.params.Bundesland]
    let query = `INSERT INTO kennzeichnung (ortskuerzel, ursprung, landkreis, bundesland) VALUES (?,?,?,?)`
    connection.query(query, values, function(err, result) {
@@ -81,7 +82,7 @@ async function importLicensePlates(requestBody, res) {
 }
 
 async function exportLicensePlates(req, res) {
-   let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Region', Bundesland AS Bundesland FROM kennzeichnung`
+   let query = `SELECT Ortskuerzel as Ortskuerzel, Ursprung as Ursprung, Landkreis AS 'Region', Bundesland AS Bundesland FROM kennzeichnung ORDER BY Ortskuerzel ASC`
    connection.query(query, function (err, result) {
       if (err) {
          console.log(err)
@@ -92,10 +93,10 @@ async function exportLicensePlates(req, res) {
             res.write(JSON.stringify(result))
             res.end()
          } else if (req.get("Requested-Type") === "text/xml") {
-
             let formattedResult = []
+            formattedResult["elements"] = {}
             result.forEach((value, index) => {
-               formattedResult.elements["elem"+index] = value
+               formattedResult["elements"]["elem"+index] = value
             });
             res.send(convert.json2xml(formattedResult, {
                compact: true,
@@ -139,7 +140,7 @@ app.get('/deletedb', function (req, res) {
 
 app.get('/ortskuerzel/:kuerzel', function (req, res) {
    let kuerzel = req.params.kuerzel
-   var sql = "SELECT * FROM kennzeichnung WHERE ortskuerzel LIKE concat('%', ?, '%')";
+   var sql = "SELECT * FROM kennzeichnung WHERE ortskuerzel LIKE concat('%', ?, '%') ORDER BY Ortskuerzel ASC";
    connection.query(sql, kuerzel, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -148,7 +149,7 @@ app.get('/ortskuerzel/:kuerzel', function (req, res) {
 
 app.get('/landkreis/:landkreis', function (req, res) {
    let landkreis = decodeURI(req.params.landkreis)
-   var sql = "SELECT * FROM kennzeichnung WHERE landkreis LIKE concat('%', ?, '%') ";
+   var sql = "SELECT * FROM kennzeichnung WHERE landkreis LIKE concat('%', ?, '%') ORDER BY Ortskuerzel ASC";
    connection.query(sql, landkreis, function (err, results, fields) {
       if (err) throw err;
       res.send(results);
@@ -165,7 +166,7 @@ app.get('/landkreis', function (req, res) {
 
 app.get('/bundesland/:bundesland', function (req, res) {
    let bundesland = decodeURI(req.params.bundesland)
-   var sql = "SELECT * FROM kennzeichnung WHERE bundesland LIKE concat('%', ?, '%')";
+   var sql = "SELECT * FROM kennzeichnung WHERE bundesland LIKE concat('%', ?, '%') ORDER BY Ortskuerzel ASC";
    connection.query(sql, bundesland, function (err, results, fields) {
       if (err) throw err;
       console.log(results)
